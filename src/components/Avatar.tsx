@@ -1,20 +1,65 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
 
 interface AvatarProps {
   isAnimating: boolean;
-  size?: number;
-  className?: string;
+  lipSyncData?: number[];
 }
 
-export default function Avatar({
-  isAnimating,
-  size = 48,
-  className,
-}: AvatarProps) {
+export default function Avatar({ isAnimating, lipSyncData }: AvatarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [blinkState, setBlinkState] = useState(false);
+  const [mouthOpenness, setMouthOpenness] = useState(0);
+  
+  // Animation frame tracking
+  const animationFrameIdRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    // Set up blink animation
+    const blinkInterval = setInterval(() => {
+      setBlinkState(true);
+      setTimeout(() => setBlinkState(false), 200);
+    }, Math.random() * 3000 + 2000); // Random blink between 2-5 seconds
+
+    return () => clearInterval(blinkInterval);
+  }, []);
+
+  useEffect(() => {
+    // Handle lip sync animation
+    if (isAnimating) {
+      // Simple mouth animation when no lip sync data
+      const animateMouth = (timestamp: number) => {
+        if (!lastTimeRef.current) lastTimeRef.current = timestamp;
+        const deltaTime = timestamp - lastTimeRef.current;
+        
+        if (deltaTime > 100) {
+          // Generate random mouth movement when speaking
+          if (!lipSyncData) {
+            setMouthOpenness(Math.sin(timestamp / 150) * 0.5 + 0.5);
+          } else {
+            // Use actual lip sync data if available
+            const index = Math.floor((timestamp / 100) % lipSyncData.length);
+            setMouthOpenness(lipSyncData[index] / 100);
+          }
+          lastTimeRef.current = timestamp;
+        }
+        
+        animationFrameIdRef.current = requestAnimationFrame(animateMouth);
+      };
+      
+      animationFrameIdRef.current = requestAnimationFrame(animateMouth);
+    } else {
+      setMouthOpenness(0);
+    }
+
+    return () => {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+    };
+  }, [isAnimating, lipSyncData]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -23,97 +68,59 @@ export default function Avatar({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Set canvas dimensions
-    canvas.width = size;
-    canvas.height = size;
-
-    // Center coordinates
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const radius = (size / 2) * 0.8;
-
-    // Animation variables
-    let animationFrameId: number;
-    const hue = 210; // Blue hue
-    const waveAmplitude = 3;
-    const waveFrequency = 0.15;
-    let wavePhase = 0;
-
-    const draw = () => {
-      // Clear canvas
+    // Placeholder for avatar rendering
+    const drawPlaceholderAvatar = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw circular gradient background
-      const gradient = ctx.createRadialGradient(
-        centerX,
-        centerY,
-        0,
-        centerX,
-        centerY,
-        radius
-      );
-      gradient.addColorStop(0, `hsla(${hue}, 70%, 60%, 0.8)`);
-      gradient.addColorStop(1, `hsla(${hue}, 70%, 40%, 0.8)`);
-
+      ctx.fillStyle = "#4B5563";
       ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
+      ctx.arc(canvas.width / 2, canvas.height / 2, 50, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw animated wave pattern if animating
+      // Draw a simple face
+      ctx.strokeStyle = "#FFFFFF";
+      ctx.lineWidth = 2;
+
+      // Eyes
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2 - 15, canvas.height / 2 - 10, 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2 + 15, canvas.height / 2 - 10, 5, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Mouth - animated based on isAnimating
+      ctx.beginPath();
       if (isAnimating) {
-        wavePhase += 0.1;
-
-        ctx.beginPath();
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-        ctx.lineWidth = 2;
-
-        for (let i = 0; i < 360; i += 5) {
-          const angle = (i * Math.PI) / 180;
-          const x = centerX + Math.cos(angle) * (radius * 0.6);
-          const y = centerY + Math.sin(angle) * (radius * 0.6);
-
-          const waveOffset =
-            Math.sin(i * waveFrequency + wavePhase) * waveAmplitude;
-
-          if (i === 0) {
-            ctx.moveTo(x, y + waveOffset);
-          } else {
-            ctx.lineTo(x, y + waveOffset);
-          }
-        }
-
-        ctx.closePath();
-        ctx.stroke();
+        ctx.arc(canvas.width / 2, canvas.height / 2 + 15, 10, 0, Math.PI);
+      } else {
+        ctx.moveTo(canvas.width / 2 - 10, canvas.height / 2 + 15);
+        ctx.lineTo(canvas.width / 2 + 10, canvas.height / 2 + 15);
       }
-
-      // Draw AI icon
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.font = `${size * 0.4}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("AI", centerX, centerY);
-
-      if (isAnimating) {
-        animationFrameId = requestAnimationFrame(draw);
-      }
+      ctx.stroke();
     };
 
-    draw();
+    // Animation loop
+    let animationFrameId: number;
+    const animate = () => {
+      drawPlaceholderAvatar();
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animate();
 
     return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
+      cancelAnimationFrame(animationFrameId);
     };
-  }, [isAnimating, size]);
+  }, [isAnimating, lipSyncData]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={size}
-      height={size}
-      className={cn("rounded-full", className)}
-    />
+    <div className="relative w-32 h-32 mx-auto mb-4">
+      <canvas
+        ref={canvasRef}
+        width={128}
+        height={128}
+        className="rounded-full bg-gray-700"
+      />
+    </div>
   );
 }
