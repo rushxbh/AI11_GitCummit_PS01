@@ -19,7 +19,8 @@ export default function LoginPage() {
     try {
       await login(email, password);
       router.push("/");
-    } catch (err) {
+    } catch (err: unknown) {
+      console.log(err)
       setError("Invalid email or password");
     }
   };
@@ -85,7 +86,7 @@ export default function LoginPage() {
               href="/signup"
               className="font-medium text-blue-600 hover:text-blue-500"
             >
-              Don't have an account? Sign up
+              {"Don't"} have an account? Sign up
             </Link>
           </div>
         </form>

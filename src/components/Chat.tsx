@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Avatar from "./Avatar";
 import VoiceInterface from "./VoiceInterface";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   id: string;
   content: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "model";
   timestamp: Date;
 }
 
@@ -20,64 +21,95 @@ export default function Chat() {
   const [showLoginPopup, setShowLoginPopup] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
-
+  useEffect(() => {
+    const fetchChatHistory = async () => {
+      if (!user) return;
+  
+      try {
+        const response = await fetch(`/api/chat?userId=${user.id}`);
+        const data = await response.json();
+  
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to fetch chat history");
+        }
+  
+        if (data.chatHistory) {
+          setMessages(
+            data.chatHistory.map((msg: Message, index: number) => ({
+              id: index.toString(),
+              content: msg.content,
+              role: msg.role === "model" ? "assistant" : "user",
+              timestamp: new Date(),
+            }))
+          );
+        }
+      } catch (error) {
+        console.error("Error fetching chat history:", error);
+      }
+    };
+  
+    fetchChatHistory();
+  }, [user]);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-
+  
     if (!user) {
       setShowLoginPopup(true);
       return;
     }
-
+  
     const userMessage: Message = {
       id: Date.now().toString(),
       content: input.trim(),
       role: "user",
       timestamp: new Date(),
     };
-
+  
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
-
+  
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: input.trim() }),
+        body: JSON.stringify({ userId: user.id, message: input.trim() }), // Include userId
       });
-
+  
       const data = await response.json();
-
+  
       if (!response.ok) {
         throw new Error(data.error || "Failed to get AI response");
       }
-
-      if (!data.content) {
-        throw new Error("Received empty response from server");
+  
+      if (!data.chatHistory) {
+        throw new Error("Received empty chat history from server");
       }
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: data.content,
-        role: "assistant",
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
+  
+      setMessages(
+        data.chatHistory.map((msg: Message, index: number) => ({
+          id: index.toString(),
+          content: msg.content,
+          role: msg.role === "model" ? "assistant" : "user",
+          timestamp: new Date(),
+        }))
+      );
     } catch (error) {
       console.error("Error getting AI response:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: "Sorry, I encountered an error. Please try again.",
-        role: "assistant",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          content: "Sorry, I encountered an error. Please try again.",
+          role: "assistant",
+          timestamp: new Date(),
+        },
+      ]);
     }
   };
+  
 
   const handleSpeechInput = useCallback((text: string) => {
     setInput(text);
@@ -109,7 +141,7 @@ export default function Chat() {
                   : "bg-gray-200 dark:bg-gray-700"
               }`}
             >
-              {message.content}
+              {message.role=="user"? message.content : <ReactMarkdown>{message.content}</ReactMarkdown>}
             </div>
           </div>
         ))}
