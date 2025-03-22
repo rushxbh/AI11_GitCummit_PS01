@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Avatar from "./Avatar";
 import VoiceInterface from "./VoiceInterface";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,8 +19,20 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
+  const [avatarEmotion, setAvatarEmotion] = useState<"neutral" | "happy" | "thinking" | "confused">("neutral");
   const { user } = useAuth();
   const router = useRouter();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Scroll to bottom when messages change
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+  
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+  
   useEffect(() => {
     const fetchChatHistory = async () => {
       if (!user) return;
@@ -50,6 +62,7 @@ export default function Chat() {
   
     fetchChatHistory();
   }, [user]);
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -59,26 +72,102 @@ export default function Chat() {
       return;
     }
   
-    setMessages((prev) => [...prev, { id: Date.now().toString(), content: input, role: "user", timestamp: new Date() }]);
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content: input.trim(),
+      role: "user",
+      timestamp: new Date(),
+    };
+  
+    setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    
+    // Show thinking emotion while waiting for response
+    setAvatarEmotion("thinking");
   
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ userId: user.id, message: input.trim() }),
       });
   
       const data = await response.json();
-      setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), content: data.content, role: "assistant", timestamp: new Date() }]);
+  
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to get AI response");
+      }
+  
+      // Check if chatHistory exists and is not empty
+      if (!data.chatHistory || data.chatHistory.length === 0) {
+      // Add a fallback response instead of throwing an error
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          content: "I received your message, but there was an issue with the response. Please try again.",
+          role: "assistant",
+          timestamp: new Date(),
+        },
+      ]);
+      setAvatarEmotion("confused");
+      return;
+      }
+      
+      // Process the new messages
+      const formattedMessages = data.chatHistory.map((msg: Message, index: number) => ({
+        id: index.toString(),
+        content: msg.content,
+        role: msg.role === "model" ? "assistant" : "user",
+        timestamp: new Date(),
+      }));
+      
+      setMessages(formattedMessages);
+      
+      // Determine appropriate emotion based on response
+      const lastResponse = formattedMessages[formattedMessages.length - 1];
+      if (lastResponse && lastResponse.role === "assistant") {
+        const content = lastResponse.content.toLowerCase();
+        if (content.includes("sorry") || content.includes("can't") || content.includes("cannot")) {
+          setAvatarEmotion("confused");
+        } else if (content.includes("great") || content.includes("excellent") || content.includes("happy")) {
+          setAvatarEmotion("happy");
+        } else {
+          setAvatarEmotion("neutral");
+        }
+        
+        // Use browser's text-to-speech for the response
+        if (window.speakText && typeof window.speakText === 'function') {
+          // Extract plain text from markdown for speech
+          const plainText = lastResponse.content.replace(/[*#_~`>\[\]]/g, '');
+          window.speakText(plainText);
+        }
+      }
+      
     } catch (error) {
       console.error("Error getting AI response:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          content: "Sorry, I encountered an error. Please try again.",
+          role: "assistant",
+          timestamp: new Date(),
+        },
+      ]);
+      setAvatarEmotion("confused");
     }
   };
   
-
   const handleSpeechInput = useCallback((text: string) => {
     setInput(text);
+    // Auto-submit after voice input
+    setTimeout(() => {
+      const event = new Event('submit', { bubbles: true, cancelable: true });
+      document.querySelector('form')?.dispatchEvent(event);
+    }, 500);
   }, []);
 
   const handleSpeechStart = useCallback(() => {
@@ -87,30 +176,52 @@ export default function Chat() {
 
   const handleSpeechEnd = useCallback(() => {
     setIsAssistantSpeaking(false);
+    setAvatarEmotion("neutral");
+  }, []);
+  
+  const handleEmotionChange = useCallback((emotion: string) => {
+    setAvatarEmotion(emotion as "neutral" | "happy" | "thinking" | "confused");
   }, []);
 
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto p-4 relative">
-      <Avatar isAnimating={isAssistantSpeaking} />
-      <div className="flex-1 overflow-y-auto mb-4 space-y-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${
-              message.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
+      <div className="mb-6">
+        <Avatar 
+          isAnimating={isAssistantSpeaking}
+          emotion={avatarEmotion}
+        />
+      </div>
+      
+      <div className="flex-1 overflow-y-auto mb-4 space-y-4 px-2">
+        {messages.length === 0 ? (
+          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+            <p className="text-lg font-medium">Welcome to AI Assistant</p>
+            <p className="mt-2">Ask me anything using text or voice!</p>
+          </div>
+        ) : (
+          messages.map((message) => (
             <div
-              className={`max-w-[80%] rounded-lg p-4 ${
-                message.role === "user"
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-200 dark:bg-gray-700"
+              key={message.id}
+              className={`flex ${
+                message.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              {message.role=="user"? message.content : <ReactMarkdown>{message.content}</ReactMarkdown>}
+              <div
+                className={`max-w-[80%] rounded-lg p-4 ${
+                  message.role === "user"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-200 dark:bg-gray-700"
+                }`}
+              >
+                {message.role === "user" ? 
+                  message.content : 
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                }
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
       {showLoginPopup && (
@@ -138,6 +249,7 @@ export default function Chat() {
           </div>
         </div>
       )}
+      
       <form
         onSubmit={handleSubmit}
         className="sticky bottom-10 flex gap-2 bg-white dark:bg-gray-900 p-4 rounded-xl shadow-lg"
@@ -146,6 +258,7 @@ export default function Chat() {
           onSpeechInput={handleSpeechInput}
           onSpeechStart={handleSpeechStart}
           onSpeechEnd={handleSpeechEnd}
+          emotion={handleEmotionChange}
         />
         <input
           type="text"
