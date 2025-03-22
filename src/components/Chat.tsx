@@ -19,8 +19,10 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
+  const [lastAssistantMessage, setLastAssistantMessage] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
+  
   useEffect(() => {
     const fetchChatHistory = async () => {
       if (!user) return;
@@ -50,6 +52,7 @@ export default function Chat() {
   
     fetchChatHistory();
   }, [user]);
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -59,10 +62,18 @@ export default function Chat() {
       return;
     }
   
-    setMessages((prev) => [...prev, { id: Date.now().toString(), content: input, role: "user", timestamp: new Date() }]);
+    // Add user message to chat
+    setMessages((prev) => [...prev, { 
+      id: Date.now().toString(), 
+      content: input, 
+      role: "user", 
+      timestamp: new Date() 
+    }]);
+    
     setInput("");
   
     try {
+      // Get AI response
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,12 +81,37 @@ export default function Chat() {
       });
   
       const data = await response.json();
-      setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), content: data.content, role: "assistant", timestamp: new Date() }]);
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to get AI response");
+      }
+      
+      const assistantMessage = data.content;
+      
+      // Add assistant message to chat
+      setMessages((prev) => [...prev, { 
+        id: (Date.now() + 1).toString(), 
+        content: assistantMessage, 
+        role: "assistant", 
+        timestamp: new Date() 
+      }]);
+      
+      // Process assistant message for avatar
+      const plainTextMessage = assistantMessage
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+        .replace(/```[\s\S]*?```/g, 'Code snippet')
+        .replace(/`(.*?)`/g, '$1')
+        .replace(/#{1,6}\s(.*)/g, '$1');
+      
+      setLastAssistantMessage(plainTextMessage);
+      setIsAssistantSpeaking(true);
+      
     } catch (error) {
       console.error("Error getting AI response:", error);
     }
   };
-  
 
   const handleSpeechInput = useCallback((text: string) => {
     setInput(text);
@@ -91,7 +127,8 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto p-4 relative">
-      <Avatar isAnimating={isAssistantSpeaking} />
+      <Avatar assistantMessage={lastAssistantMessage || undefined} />
+      
       <div className="flex-1 overflow-y-auto mb-4 space-y-4">
         {messages.map((message) => (
           <div
@@ -107,7 +144,7 @@ export default function Chat() {
                   : "bg-gray-200 dark:bg-gray-700"
               }`}
             >
-              {message.role=="user"? message.content : <ReactMarkdown>{message.content}</ReactMarkdown>}
+              {message.role === "user" ? message.content : <ReactMarkdown>{message.content}</ReactMarkdown>}
             </div>
           </div>
         ))}
@@ -138,6 +175,7 @@ export default function Chat() {
           </div>
         </div>
       )}
+      
       <form
         onSubmit={handleSubmit}
         className="sticky bottom-10 flex gap-2 bg-white dark:bg-gray-900 p-4 rounded-xl shadow-lg"
