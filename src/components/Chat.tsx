@@ -214,6 +214,7 @@ function ChatContent() {
     }
   };
 
+  
   const handleSpeechInput = useCallback((text: string) => {
     setInput(text);
   }, []);
