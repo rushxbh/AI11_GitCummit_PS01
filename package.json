@@ -10,11 +10,14 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",
+    "@pinecone-database/pinecone": "^5.1.1",
     "@types/jsonwebtoken": "^9.0.9",
     "bcryptjs": "^3.0.2",
+    "dotenv": "^16.4.7",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.12.2",
     "next": "15.2.3",
+    "pdf-parse": "^1.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0"
@@ -23,6 +26,7 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
