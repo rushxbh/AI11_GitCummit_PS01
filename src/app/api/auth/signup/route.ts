@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { generateToken } from "@/utils/auth";
 import User from "@/models/User";
-import mongoose from "mongoose";
+import dbConnect from "@/utils/db";
 
 export async function POST(request: Request) {
   try {
+    await dbConnect();
     const { email, password, name } = await request.json();
 
     // Check if user already exists
