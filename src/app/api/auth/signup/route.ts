@@ -40,7 +40,8 @@ export async function POST(request: Request) {
       },
       token,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    console.log(error)
     return NextResponse.json(
       { message: "Failed to create account" },
       { status: 500 }

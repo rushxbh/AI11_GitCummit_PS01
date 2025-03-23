@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "901780320219",
+    "project_id": "chatgptoncrack-1a9b8",
+    "storage_bucket": "chatgptoncrack-1a9b8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:901780320219:android:060e14cf348813b30ac1fe",
+        "android_client_info": {
+          "package_name": "com.example.chatgptoncrack"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAW4JTvFT7tRKYQyHXI5notmfyn6URunbM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

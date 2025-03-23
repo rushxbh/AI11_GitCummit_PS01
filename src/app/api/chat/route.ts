@@ -1,31 +1,58 @@
 import { NextResponse } from "next/server";
+import { queryRAG } from "@/utils/queryRag";
+import Chat from "@/models/Chat";
+import dbConnect from "@/utils/db";
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
+  await dbConnect();
+  const { userId, message } = await req.json();
+
   try {
-    const { message } = await request.json();
-    if (!message || typeof message !== "string") {
-      return NextResponse.json(
-        { error: "Invalid message format" },
-        { status: 400 }
-      );
+    // Get AI response
+    const responseText = await queryRAG(message);
+
+    // Find existing chat document for the user
+    let chat = await Chat.findOne({ user: userId });
+
+    if (!chat) {
+      // If no chat document exists, create a new one
+      chat = new Chat({ user: userId, chatHistory: [] });
     }
 
-    // Simple response system
-    const response = `Hello! You said: "${message}". I'm a simple chatbot that echoes your messages.`;
+    // Append new messages to chatHistory
+    chat.chatHistory.push({ role: "user", content: message });
+    chat.chatHistory.push({ role: "model", content: responseText });
 
-    return NextResponse.json({ content: response });
+    // Save updated chat document
+    await chat.save();
+
+    return NextResponse.json({ content: responseText });
   } catch (error) {
-    console.error("Error in chat route:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred";
-    return new Response(
-      JSON.stringify({
-        error: `Failed to process your request: ${errorMessage}`,
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    console.error("Error processing chat:", error);
+    return NextResponse.json({ error: "Failed to process request" }, { status: 500 });
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    await dbConnect(); // Ensure DB is connected
+
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+
+    if (!userId) {
+      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    }
+
+    const chat = await Chat.findOne({ user: userId });
+
+    if (!chat) {
+      return NextResponse.json({ chatHistory: [] }); // Return empty history if no chat found
+    }
+
+    return NextResponse.json({ chatHistory: chat.chatHistory });
+  } catch (error) {
+    console.error("Error fetching chat history:", error);
+    return NextResponse.json({ error: "Failed to fetch chat" }, { status: 500 });
   }
 }
