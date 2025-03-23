@@ -23,7 +23,7 @@ export default function Navbar() {
               href="/"
               className="flex items-center px-2 py-2 text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
             >
-              <span className="text-xl font-bold">AI Chat</span>
+              <span className="text-xl font-bold">IDMS BOT</span>
             </Link>
           </div>
 
