@@ -147,7 +147,7 @@ export default function Avatar({ assistantMessage }: AvatarProps) {
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
         </div>
       )}
-
+ 
       {error && (
         <div className="absolute bottom-0 left-0 right-0 bg-red-500 text-white text-xs p-1 text-center">
           {error}
