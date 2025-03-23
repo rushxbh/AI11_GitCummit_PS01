@@ -15,8 +15,8 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="bg-white dark:bg-gray-900 shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+      <div className="max-w-7xl mx-auto">
         <div className="flex justify-between h-16">
           <div className="flex">
             <Link
