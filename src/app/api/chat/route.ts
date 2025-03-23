@@ -1,29 +1,50 @@
 import { NextResponse } from "next/server";
-import { queryRAG } from "@/utils/queryRag";
+import { queryRAG } from "@/utils/queryRag"; // RAG retrieval
 import Chat from "@/models/Chat";
 import dbConnect from "@/utils/db";
+import { Ollama } from "ollama";
+
+const ollama = new Ollama();
+
 
 export async function POST(req: Request) {
   await dbConnect();
-  const { userId, message } = await req.json();
+  const { userId, message, fullHistory = false } = await req.json();
 
   try {
-    // Get AI response
-    const responseText = await queryRAG(message);
+    // Step 1: Retrieve relevant context from Pinecone (RAG)
+    const retrievedDocs = await queryRAG(message);
 
-    // Find existing chat document for the user
+    // Step 2: Fetch chat history from MongoDB
     let chat = await Chat.findOne({ user: userId });
+    if (!chat) chat = new Chat({ user: userId, chatHistory: [] });
 
-    if (!chat) {
-      // If no chat document exists, create a new one
-      chat = new Chat({ user: userId, chatHistory: [] });
+    // Step 3: Prepare messages for Ollama
+    let chatHistory = chat.chatHistory.map(({ role, content }: {role: string, content: string}) => ({
+      role: role === "assistant" ? "model" : "user",
+      content,
+    }));
+
+    // Limit history if `fullHistory === false`
+    if (!fullHistory) chatHistory = chatHistory.slice(-5);
+
+    // Step 4: Construct the prompt
+    let prompt = message;
+    if (retrievedDocs.length > 0) {
+      prompt = `Use the following context to answer the query:\n\n${retrievedDocs}\n\nUser: ${message}`;
     }
 
-    // Append new messages to chatHistory
+    // Step 5: Query Ollama
+    const response = await ollama.chat({
+      model: "mistral", // Change to "llama3" if using Llama 3
+      messages: [...chatHistory, { role: "user", content: prompt }],
+    });
+    console.log(response)
+    const responseText = response.message.content;
+
+    // Step 6: Store messages in chat history
     chat.chatHistory.push({ role: "user", content: message });
     chat.chatHistory.push({ role: "model", content: responseText });
-
-    // Save updated chat document
     await chat.save();
 
     return NextResponse.json({ content: responseText });
