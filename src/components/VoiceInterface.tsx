@@ -8,9 +8,9 @@ interface VoiceInterfaceProps {
   onSpeechEnd: () => void;
 }
 
-export default function VoiceInterface({
-  onSpeechInput,
-  onSpeechStart,
+export default function VoiceInterface({ 
+  onSpeechInput, 
+  onSpeechStart, 
   onSpeechEnd,
 }: VoiceInterfaceProps) {
   const [isListening, setIsListening] = useState(false);
